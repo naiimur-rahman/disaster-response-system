@@ -99,7 +99,12 @@ async function loadStats() {
     set('statVolunteers',d.volunteers.deployed || 0);
     set('statDonations', d.donations.total_amount || 0);
     set('statShelters',  d.shelters.open_count || 0);
-  } catch(e){ toast('Failed to load stats','error'); }
+  } catch(e){
+    const msg = e.message && e.message.includes('Database unavailable')
+      ? 'Database unavailable — ensure MySQL is running and .env is configured'
+      : 'Failed to load stats';
+    toast(msg, 'error');
+  }
 }
 
 async function loadCharts() {

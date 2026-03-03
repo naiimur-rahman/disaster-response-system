@@ -1,7 +1,8 @@
 // routes/familyLinks.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/family-links — List missing person reports
 router.get('/', async (req, res) => {
@@ -15,6 +16,7 @@ router.get('/', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -30,6 +32,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ link_id: result.insertId, message: 'Missing person report created' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -44,6 +47,7 @@ router.put('/:id/found', async (req, res) => {
         );
         res.json({ message: 'Marked as found' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
