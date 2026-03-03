@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Family Reunification — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">❤️ <span>Family Reunification</span></h1>
+        <p class="page-subtitle">Help families find their loved ones</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('reportMissingModal')">➕ Report Missing Person</button>
+    </div>
+
+    <!-- Counter -->
+    <div style="text-align:center;padding:20px 0">
+      <div class="family-counter heartbeat" id="reunited">—</div>
+      <div style="color:var(--text-muted);font-size:0.9rem;margin-top:4px">❤️ Families Reunited</div>
+    </div>
+
+    <!-- Split view -->
+    <div class="split-view">
+      <div>
+        <div class="section-title" style="color:var(--accent)">🔴 Missing Persons</div>
+        <div id="missingList"></div>
+      </div>
+      <div>
+        <div class="section-title" style="color:var(--success)">✅ Found & Reunited</div>
+        <div id="foundList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Missing Modal -->
+<div class="modal-overlay" id="reportMissingModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🔍 Report Missing Person</h3>
+      <button class="modal-close" onclick="closeModal('reportMissingModal')">✕</button>
+    </div>
+    <form id="reportMissingForm">
+      <div class="form-group">
+        <label class="form-label">Your Victim ID (Reporter) *</label>
+        <input class="form-control" name="victim_id" type="number" required placeholder="Your registered victim ID"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Missing Person Name *</label>
+        <input class="form-control" name="missing_person_name" required placeholder="Full name of missing person"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Relationship *</label>
+          <select class="form-control" name="relationship" required>
+            <option>Spouse</option><option>Parent</option><option>Child</option>
+            <option>Sibling</option><option>Relative</option><option>Friend</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Last Seen Date</label>
+          <input class="form-control" name="last_seen_date" type="datetime-local"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Last Seen Location</label>
+        <input class="form-control" name="last_seen_location" placeholder="e.g. Sylhet Bus Terminal"/>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('reportMissingModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">📋 Submit Report</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Mark Found Modal -->
+<div class="modal-overlay" id="foundModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3 class="modal-title">✅ Mark as Found</h3>
+      <button class="modal-close" onclick="closeModal('foundModal')">✕</button>
+    </div>
+    <input type="hidden" id="foundLinkId"/>
+    <div class="form-group">
+      <label class="form-label">Found Victim ID (optional)</label>
+      <input class="form-control" id="foundVictimId" type="number" placeholder="Enter victim ID if known"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('foundModal')">Cancel</button>
+      <button class="btn btn-success" onclick="markFound()">🎉 Mark as Found!</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+async function loadFamilyLinks() {
+  try {
+    const data = await api.get('/family-links');
+    const missing = data.filter(d => !d.is_found);
+    const found   = data.filter(d => d.is_found);
+
+    // Update counter
+    animateCounter(document.getElementById('reunited'), found.length);
+
+    // Missing
+    const mList = document.getElementById('missingList');
+    if(!missing.length) {
+      mList.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem">No missing persons reported</p>';
+    } else {
+      mList.innerHTML = missing.map(m=>`
+        <div class="family-card">
+          <div class="person-avatar">👤</div>
+          <div style="font-weight:700;font-size:1rem">${m.missing_person_name}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin:4px 0">${m.relationship} of <strong>${m.reporter_name||'Unknown'}</strong></div>
+          <div style="font-size:0.78rem;color:var(--text-muted)">📍 Last seen: ${m.last_seen_location||'Unknown'}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted)">🕐 ${m.last_seen_date ? fmtDate(m.last_seen_date) : '—'}</div>
+          <button class="btn btn-success btn-sm" style="margin-top:12px" onclick="openFound(${m.link_id})">✅ Mark Found</button>
+        </div>`).join('');
+    }
+
+    // Found
+    const fList = document.getElementById('foundList');
+    if(!found.length) {
+      fList.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem">No reunions yet</p>';
+    } else {
+      fList.innerHTML = found.map(f=>`
+        <div class="family-card" style="border-color:rgba(81,207,102,0.3)">
+          <div class="person-avatar">🎉</div>
+          <div style="font-weight:700;font-size:1rem">${f.missing_person_name}</div>
+          <div style="font-size:0.8rem;color:var(--success);margin:4px 0">✅ Reunited</div>
+          <div style="font-size:0.78rem;color:var(--text-muted)">${f.relationship} of <strong>${f.reporter_name||'Unknown'}</strong></div>
+          ${f.found_victim_name ? `<div style="font-size:0.78rem;color:var(--text-muted)">Found as: ${f.found_victim_name}</div>` : ''}
+        </div>`).join('');
+    }
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function openFound(id) {
+  document.getElementById('foundLinkId').value = id;
+  document.getElementById('foundVictimId').value = '';
+  openModal('foundModal');
+}
+
+async function markFound() {
+  const id  = document.getElementById('foundLinkId').value;
+  const vid = document.getElementById('foundVictimId').value;
+  try {
+    await api.put(`/family-links/${id}/found`, { found_victim_id: vid || null });
+    toast('🎉 Person marked as found! Family reunited!', 'success', 5000);
+    closeModal('foundModal');
+    // Confetti!
+    launchConfetti();
+    loadFamilyLinks();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function launchConfetti() {
+  const colors = ['#00d4ff','#ff6b6b','#51cf66','#ffd43b','#7c3aed'];
+  for(let i=0;i<80;i++){
+    const c = document.createElement('div');
+    c.className = 'confetti-piece';
+    c.style.cssText = `left:${Math.random()*100}vw;top:-10px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${Math.random()>0.5?'50%':'2px'};width:${Math.random()*12+6}px;height:${Math.random()*12+6}px;animation-delay:${Math.random()*2}s;animation-duration:${Math.random()*2+2}s`;
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(), 5000);
+  }
+}
+
+document.getElementById('reportMissingForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/family-links', body);
+    toast('Missing person reported','success');
+    closeModal('reportMissingModal');
+    e.target.reset();
+    loadFamilyLinks();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadFamilyLinks);
+</script>
+</body>
+</html>

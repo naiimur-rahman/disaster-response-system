@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Shelters — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">🏠 <span>Shelters</span></h1>
+        <p class="page-subtitle">Manage emergency shelter locations and capacity</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="openModal('nearestModal')">📍 Find Nearest</button>
+        <button class="btn btn-primary" onclick="openModal('addShelterModal')">➕ Add Shelter</button>
+      </div>
+    </div>
+
+    <div id="shelterGrid" class="grid-3"></div>
+  </div>
+</div>
+
+<!-- Find Nearest Modal -->
+<div class="modal-overlay" id="nearestModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">📍 Find Nearest Shelter</h3>
+      <button class="modal-close" onclick="closeModal('nearestModal')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Latitude</label>
+        <input class="form-control" id="nearLat" type="number" step="any" placeholder="e.g. 23.8103"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Longitude</label>
+        <input class="form-control" id="nearLon" type="number" step="any" placeholder="e.g. 90.4125"/>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="findNearest()" style="width:100%;justify-content:center">🔍 Search</button>
+    <div id="nearestResults" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- Add Shelter Modal -->
+<div class="modal-overlay" id="addShelterModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🏠 Add New Shelter</h3>
+      <button class="modal-close" onclick="closeModal('addShelterModal')">✕</button>
+    </div>
+    <form id="addShelterForm">
+      <div class="form-group">
+        <label class="form-label">Shelter Name *</label>
+        <input class="form-control" name="name" required placeholder="e.g. Dhaka Primary School Shelter"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location *</label>
+        <input class="form-control" name="location" required placeholder="e.g. Mirpur, Dhaka"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Latitude</label>
+          <input class="form-control" name="latitude" type="number" step="any"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Longitude</label>
+          <input class="form-control" name="longitude" type="number" step="any"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Max Capacity *</label>
+          <input class="form-control" name="max_capacity" type="number" min="1" required placeholder="500"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact Number</label>
+          <input class="form-control" name="contact_number" placeholder="01711-000000"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:24px">
+          <input type="checkbox" name="has_medical_facility" id="hasMed" style="width:auto"/>
+          <label for="hasMed" style="font-size:0.875rem">Has Medical Facility</label>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:24px">
+          <input type="checkbox" name="has_food_supply" id="hasFood" style="width:auto"/>
+          <label for="hasFood" style="font-size:0.875rem">Has Food Supply</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addShelterModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">🏠 Add Shelter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+async function loadShelters() {
+  const grid = document.getElementById('shelterGrid');
+  grid.innerHTML = Array(6).fill('<div class="skeleton skeleton-card"></div>').join('');
+  try {
+    const data = await api.get('/shelters');
+    if(!data.length){ grid.innerHTML='<p style="color:var(--text-muted)">No shelters found</p>'; return; }
+    grid.innerHTML = data.map(s=>{
+      const pct = Math.round((s.current_occupancy/s.max_capacity)*100)||0;
+      const color = pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'green';
+      return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <h3 style="font-size:0.95rem;font-weight:700">${s.name}</h3>
+          ${statusBadge(s.status)}
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px">📍 ${s.location}</p>
+        <div class="capacity-info">
+          <span>Capacity</span>
+          <span>${s.current_occupancy} / ${s.max_capacity}</span>
+        </div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner ${color}" style="width:${pct}%"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:12px;font-size:0.8rem">
+          <span title="Medical">${s.has_medical_facility ? '🏥 Medical' : '<span style="color:var(--text-muted)">No Medical</span>'}</span>
+          <span title="Food">${s.has_food_supply ? '🍱 Food' : '<span style="color:var(--text-muted)">No Food</span>'}</span>
+        </div>
+        ${s.contact_number ? `<p style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">📞 ${s.contact_number}</p>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function findNearest() {
+  const lat = document.getElementById('nearLat').value;
+  const lon = document.getElementById('nearLon').value;
+  if(!lat||!lon){ toast('Please enter latitude and longitude','warning'); return; }
+  const res = document.getElementById('nearestResults');
+  res.innerHTML = '<div class="skeleton skeleton-row"></div>';
+  try {
+    const data = await api.get(`/shelters/nearest?lat=${lat}&lon=${lon}`);
+    if(!data.length){ res.innerHTML='<p style="color:var(--text-muted)">No available shelters found</p>'; return; }
+    res.innerHTML = data.map((s,i)=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <strong>${i+1}. ${s.name}</strong>
+          <div style="font-size:0.75rem;color:var(--text-muted)">${s.location}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="color:var(--primary);font-weight:700">${parseFloat(s.distance_km||0).toFixed(1)} km</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">${s.available_spots} spots</div>
+        </div>
+      </div>`).join('');
+  } catch(e){ toast(e.message,'error'); res.innerHTML=''; }
+}
+
+document.getElementById('addShelterForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  body.has_medical_facility = fd.get('has_medical_facility') === 'on';
+  body.has_food_supply       = fd.get('has_food_supply') === 'on';
+  try {
+    await api.post('/shelters', body);
+    toast('Shelter added!','success');
+    closeModal('addShelterModal');
+    e.target.reset();
+    loadShelters();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadShelters);
+</script>
+</body>
+</html>

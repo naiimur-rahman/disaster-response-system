@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Reports — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">📋 <span>Reports</span></h1>
+        <p class="page-subtitle">Generate comprehensive disaster reports</p>
+      </div>
+      <button class="btn btn-ghost" onclick="window.print()">🖨️ Print Report</button>
+    </div>
+
+    <!-- Select Disaster -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="flex:1;min-width:200px;margin:0">
+          <label class="form-label">Select Disaster</label>
+          <select class="form-control" id="disasterSelect">
+            <option value="">— Select a disaster —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="generateReport()">📊 Generate Report</button>
+      </div>
+    </div>
+
+    <!-- Report Output -->
+    <div id="reportOutput" style="display:none">
+      <!-- Disaster summary -->
+      <div class="card" id="reportHeader" style="margin-bottom:16px"></div>
+
+      <!-- Stats row -->
+      <div class="stats-grid" id="reportStats" style="margin-bottom:16px"></div>
+
+      <!-- Charts -->
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="card"><div class="card-title">Victims by Status</div><canvas id="rptVictimChart" height="200"></canvas></div>
+        <div class="card"><div class="card-title">Donations by Type</div><canvas id="rptDonationChart" height="200"></canvas></div>
+      </div>
+
+      <!-- Tables -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="section-title">Rescue Operations</div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Status</th><th>Operations</th><th>People Rescued</th></tr></thead>
+          <tbody id="rptOpsTable"></tbody>
+        </table></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="section-title">Resource Distributions</div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Resource</th><th>Category</th><th>Total Distributed</th></tr></thead>
+          <tbody id="rptResourceTable"></tbody>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Donation Summary</div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Type</th><th>Count</th><th>Total Amount (৳)</th><th>Quantity</th></tr></thead>
+          <tbody id="rptDonTable"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+let rptVChart, rptDChart;
+
+async function loadDisasterList() {
+  try {
+    const data = await api.get('/disasters');
+    const sel = document.getElementById('disasterSelect');
+    data.forEach(d=>{
+      const o = document.createElement('option');
+      o.value = d.disaster_id;
+      o.textContent = `#${d.disaster_id} — ${d.disaster_type} @ ${d.location} (${d.status})`;
+      sel.appendChild(o);
+    });
+  } catch(e){ console.error(e); }
+}
+
+async function generateReport() {
+  const id = document.getElementById('disasterSelect').value;
+  if(!id){ toast('Please select a disaster','warning'); return; }
+  const out = document.getElementById('reportOutput');
+  out.style.display = '';
+  try {
+    const r = await api.get(`/disasters/${id}/report`);
+    const dis = Array.isArray(r.disaster) ? r.disaster[0] : r.disaster;
+    // Header
+    document.getElementById('reportHeader').innerHTML = `
+      <h2 style="font-size:1.4rem;margin-bottom:8px">🌊 ${dis.disaster_type} — ${dis.location}</h2>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:0.85rem;color:var(--text-muted)">
+        <span>${severityBadge(dis.severity)}</span>
+        <span>${statusBadge(dis.status)}</span>
+        <span>📅 Start: ${fmtDate(dis.start_date)}</span>
+        <span>👥 Affected: ${(dis.affected_population||0).toLocaleString()}</span>
+      </div>
+      ${dis.description?`<p style="margin-top:12px;font-size:0.875rem;color:var(--text-muted)">${dis.description}</p>`:''}`;
+
+    // Stats
+    const victims = Array.isArray(r.victims) ? r.victims : [];
+    const volStat = Array.isArray(r.volunteers) ? r.volunteers[0] : r.volunteers;
+    const totalVictims = victims.reduce((s,v)=>s+(v.count||0),0);
+    document.getElementById('reportStats').innerHTML = `
+      <div class="stat-card"><div class="stat-icon cyan">👥</div><div><div class="stat-value">${totalVictims}</div><div class="stat-label">Total Victims</div></div></div>
+      <div class="stat-card"><div class="stat-icon red">⚠️</div><div><div class="stat-value">${(victims.find(v=>v.status==='Missing')||{count:0}).count}</div><div class="stat-label">Missing</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">🙋</div><div><div class="stat-value">${volStat?volStat.total_volunteers||0:0}</div><div class="stat-label">Volunteers</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">⏱️</div><div><div class="stat-value">${volStat?parseFloat(volStat.total_hours||0).toFixed(0):0}</div><div class="stat-label">Volunteer Hours</div></div></div>`;
+
+    // Victim chart
+    if(rptVChart) rptVChart.destroy();
+    rptVChart = new Chart(document.getElementById('rptVictimChart'), {
+      type:'bar',
+      data:{ labels: victims.map(v=>v.status), datasets:[{ data:victims.map(v=>v.count), backgroundColor:['#51cf66','#ff6b6b','#ffd43b','#ff6b6b','#94a3b8'], borderRadius:6 }] },
+      options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#94a3b8'}}, y:{ticks:{color:'#94a3b8'}, grid:{color:'rgba(255,255,255,0.05)'}} } }
+    });
+
+    // Donation chart
+    const donations = Array.isArray(r.donations) ? r.donations : [];
+    if(rptDChart) rptDChart.destroy();
+    rptDChart = new Chart(document.getElementById('rptDonationChart'), {
+      type:'doughnut',
+      data:{ labels:donations.map(d=>d.donation_type), datasets:[{ data:donations.map(d=>d.donation_count), backgroundColor:['#00d4ff','#51cf66','#ff6b6b','#ffd43b','#7c3aed'], borderWidth:2, borderColor:'rgba(0,0,0,0.3)' }] },
+      options:{ responsive:true, cutout:'60%', plugins:{ legend:{ labels:{color:'#94a3b8',font:{size:11}} } } }
+    });
+
+    // Operations
+    const ops = Array.isArray(r.operations) ? r.operations : [];
+    document.getElementById('rptOpsTable').innerHTML = ops.length
+      ? ops.map(o=>`<tr><td>${statusBadge(o.status)}</td><td>${o.operations_count||0}</td><td>${(o.total_rescued||0).toLocaleString()}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No operations</td></tr>';
+
+    // Resources
+    const res = Array.isArray(r.resources) ? r.resources : [];
+    document.getElementById('rptResourceTable').innerHTML = res.length
+      ? res.map(r=>`<tr><td>${r.resource_name}</td><td>${r.category}</td><td>${(r.total_distributed||0).toLocaleString()}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">No distributions</td></tr>';
+
+    // Donations table
+    document.getElementById('rptDonTable').innerHTML = donations.length
+      ? donations.map(d=>`<tr><td>${d.donation_type}</td><td>${d.donation_count||0}</td><td>${fmtCurrency(d.total_amount)}</td><td>${(d.total_quantity||0).toLocaleString()}</td></tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No donations</td></tr>';
+
+    toast('Report generated!','success');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', loadDisasterList);
+</script>
+</body>
+</html>

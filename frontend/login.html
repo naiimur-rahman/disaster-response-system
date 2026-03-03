@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Login — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<!-- Particles background -->
+<div id="particles"></div>
+
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="logo-emoji">🌊</span>
+      <h1>DisasterRelief BD</h1>
+      <p>Response & Relief Coordination System</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="username" class="form-control" placeholder="Enter username" value="admin" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Enter password" value="password123" required/>
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn" style="width:100%;justify-content:center;padding:12px;font-size:1rem;margin-top:8px;">
+        <span id="loginBtnText">🔐 Sign In</span>
+      </button>
+    </form>
+
+    <p style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-top:20px;">
+      Demo: admin / password123 &nbsp;|&nbsp; All roles available
+    </p>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script>
+// Particle animation
+(function(){
+  const container = document.getElementById('particles');
+  for(let i=0;i<40;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.cssText = `left:${Math.random()*100}%;width:${Math.random()*4+2}px;height:${Math.random()*4+2}px;animation-duration:${Math.random()*15+8}s;animation-delay:${Math.random()*10}s;opacity:${Math.random()*0.5+0.1};background:${Math.random()>0.5?'var(--primary)':'var(--info)'}`;
+    container.appendChild(p);
+  }
+})();
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const txt = document.getElementById('loginBtnText');
+  btn.disabled = true;
+  txt.innerHTML = '<span class="loader"></span> Signing in...';
+  // Simple demo auth — just store user in sessionStorage
+  const user = document.getElementById('username').value.trim();
+  const pass = document.getElementById('password').value;
+  if(user && pass){
+    setTimeout(()=>{
+      sessionStorage.setItem('drUser', user);
+      window.location.href = 'index.html';
+    }, 800);
+  } else {
+    toast('Please enter credentials','error');
+    btn.disabled = false;
+    txt.innerHTML = '🔐 Sign In';
+  }
+});
+</script>
+</body>
+</html>

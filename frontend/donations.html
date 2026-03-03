@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Donations — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">💰 <span>Donations</span></h1>
+        <p class="page-subtitle">Transparent donation tracking and verification</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('addDonationModal')">➕ Record Donation</button>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-grid" id="donationStats" style="margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon green">💰</div><div><div class="stat-value" id="totalAmount">—</div><div class="stat-label">Total Donations (৳)</div></div></div>
+      <div class="stat-card"><div class="stat-icon cyan">📋</div><div><div class="stat-value" id="totalCount">—</div><div class="stat-label">Total Donations</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value" id="verifiedCount">—</div><div class="stat-label">Verified</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">⏳</div><div><div class="stat-value" id="pendingCount">—</div><div class="stat-label">Pending Verification</div></div></div>
+    </div>
+
+    <!-- Chart + Table -->
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Donations by Type</div></div>
+        <canvas id="chartDonTypes" height="220"></canvas>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="card-header"><div class="card-title">Recent Donations</div></div>
+        <div id="recentDonations" style="flex:1;overflow-y:auto;max-height:240px"></div>
+      </div>
+    </div>
+
+    <!-- Full Table -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">💎 Donation Transparency</div></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>#</th><th>Donor</th><th>Type</th><th>Amount / Items</th><th>Disaster</th><th>Date</th><th>Verified</th></tr></thead>
+          <tbody id="donationsTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Donation Modal -->
+<div class="modal-overlay" id="addDonationModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">💰 Record Donation</h3>
+      <button class="modal-close" onclick="closeModal('addDonationModal')">✕</button>
+    </div>
+    <form id="addDonationForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Donor ID</label>
+          <input class="form-control" name="donor_id" type="number" placeholder="Donor ID (optional)"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Disaster ID</label>
+          <input class="form-control" name="disaster_id" type="number" placeholder="Disaster ID (optional)"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Donation Type *</label>
+          <select class="form-control" name="donation_type" required>
+            <option>Money</option><option>Food</option><option>Medicine</option>
+            <option>Clothing</option><option>Equipment</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount (৳)</label>
+          <input class="form-control" name="amount" type="number" step="0.01" placeholder="0.00"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Item Description</label>
+        <textarea class="form-control" name="item_description" rows="2" placeholder="Describe items donated..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity (for non-money)</label>
+        <input class="form-control" name="quantity" type="number" placeholder="0"/>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addDonationModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">💰 Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+let donChart;
+async function loadStats() {
+  try {
+    const d = await api.get('/donations/stats');
+    animateCounter(document.getElementById('totalAmount'), d.totals.total_money||0);
+    animateCounter(document.getElementById('totalCount'),  d.totals.total_donations||0);
+    animateCounter(document.getElementById('verifiedCount'),d.totals.verified_count||0);
+    animateCounter(document.getElementById('pendingCount'), d.totals.pending_count||0);
+    // Chart
+    if(donChart) donChart.destroy();
+    donChart = new Chart(document.getElementById('chartDonTypes'), {
+      type:'pie',
+      data:{
+        labels: d.byType.map(r=>r.donation_type),
+        datasets:[{ data: d.byType.map(r=>r.count), backgroundColor:['#00d4ff','#51cf66','#ff6b6b','#ffd43b','#7c3aed'], borderWidth:2, borderColor:'rgba(0,0,0,0.3)' }]
+      },
+      options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } } }
+    });
+  } catch(e){ console.error(e); }
+}
+
+async function loadDonations() {
+  const tbody = document.getElementById('donationsTable');
+  skeletonRows(tbody, 7);
+  const recent = document.getElementById('recentDonations');
+  try {
+    const data = await api.get('/donations');
+    // Recent
+    recent.innerHTML = data.slice(0,6).map(d=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.8rem">
+        <div><strong>${d.donor_name||'Anonymous'}</strong> — ${d.donation_type}<div style="color:var(--text-muted)">${fmtDate(d.donation_date)}</div></div>
+        <div style="text-align:right">${d.amount>0?fmtCurrency(d.amount):d.quantity+' items'}${verifiedBadge(d.is_verified)}</div>
+      </div>`).join('');
+    // Full table
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">No donations yet</td></tr>'; return; }
+    tbody.innerHTML = data.map(d=>`
+      <tr>
+        <td>${d.donation_id}</td>
+        <td>
+          <strong>${d.donor_name||'Anonymous'}</strong>
+          <div style="font-size:0.72rem;color:var(--text-muted)">${d.donor_type||''}</div>
+        </td>
+        <td><span class="badge" style="background:rgba(0,212,255,0.1);color:var(--primary)">${d.donation_type}</span></td>
+        <td>${d.amount>0?`<strong>${fmtCurrency(d.amount)}</strong>`:''}${d.quantity>0?`<div style="font-size:0.78rem;color:var(--text-muted)">${d.quantity} items</div>`:''}${d.item_description?`<div style="font-size:0.72rem;color:var(--text-muted)">${d.item_description}</div>`:''}</td>
+        <td style="font-size:0.78rem">${d.disaster_type?`${d.disaster_type}<br/>${d.disaster_location||''}`:'—'}</td>
+        <td style="font-size:0.78rem">${fmtDate(d.donation_date)}</td>
+        <td>${verifiedBadge(d.is_verified)}</td>
+      </tr>`).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.getElementById('addDonationForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/donations', body);
+    toast('Donation recorded!','success');
+    closeModal('addDonationModal');
+    e.target.reset();
+    loadStats();
+    loadDonations();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', ()=>{ loadStats(); loadDonations(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Disasters — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">🌊 <span>Disasters</span></h1>
+        <p class="page-subtitle">Manage active and historical disaster events</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('addDisasterModal')">➕ Report Disaster</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <select class="form-control" id="filterStatus" onchange="loadDisasters()">
+        <option value="">All Status</option>
+        <option>Active</option><option>Contained</option><option>Resolved</option>
+      </select>
+      <select class="form-control" id="filterType" onchange="loadDisasters()">
+        <option value="">All Types</option>
+        <option>Flood</option><option>Cyclone</option><option>Earthquake</option>
+        <option>Fire</option><option>Landslide</option><option>Pandemic</option>
+      </select>
+      <select class="form-control" id="filterSeverity" onchange="loadDisasters()">
+        <option value="">All Severity</option>
+        <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>#</th><th>Type</th><th>Location</th><th>Severity</th><th>Status</th><th>Affected</th><th>Start Date</th><th>Actions</th></tr></thead>
+          <tbody id="disastersTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Disaster Modal -->
+<div class="modal-overlay" id="addDisasterModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🌊 Report New Disaster</h3>
+      <button class="modal-close" onclick="closeModal('addDisasterModal')">✕</button>
+    </div>
+    <form id="addDisasterForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type *</label>
+          <select class="form-control" name="disaster_type" required>
+            <option>Flood</option><option>Cyclone</option><option>Earthquake</option>
+            <option>Fire</option><option>Landslide</option><option>Pandemic</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Severity *</label>
+          <select class="form-control" name="severity" required>
+            <option>Low</option><option>Medium</option><option>High</option><option>Critical</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location *</label>
+        <input class="form-control" name="location" placeholder="e.g. Cox's Bazar, Bangladesh" required/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Latitude</label>
+          <input class="form-control" name="latitude" type="number" step="any" placeholder="e.g. 22.3569"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Longitude</label>
+          <input class="form-control" name="longitude" type="number" step="any" placeholder="e.g. 91.7832"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Start Date *</label>
+          <input class="form-control" name="start_date" type="datetime-local" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Affected Population</label>
+          <input class="form-control" name="affected_population" type="number" placeholder="0"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-control" name="description" rows="3" placeholder="Describe the disaster..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addDisasterModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">🌊 Create Disaster</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="detailTitle">Disaster Details</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    </div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+async function loadDisasters() {
+  const status   = document.getElementById('filterStatus').value;
+  const type     = document.getElementById('filterType').value;
+  const severity = document.getElementById('filterSeverity').value;
+  const params   = new URLSearchParams();
+  if(status)   params.set('status', status);
+  if(type)     params.set('type', type);
+  if(severity) params.set('severity', severity);
+  const tbody = document.getElementById('disastersTable');
+  skeletonRows(tbody, 8);
+  try {
+    const data = await api.get('/disasters?' + params);
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">No disasters found</td></tr>'; return; }
+    tbody.innerHTML = data.map(d=>`
+      <tr>
+        <td>${d.disaster_id}</td>
+        <td>
+          ${d.disaster_type === 'Flood' ? '🌊' : d.disaster_type === 'Cyclone' ? '🌀' : d.disaster_type === 'Earthquake' ? '🌍' : d.disaster_type === 'Fire' ? '🔥' : d.disaster_type === 'Landslide' ? '⛰️' : '🦠'}
+          ${d.disaster_type}
+        </td>
+        <td><strong>${d.location}</strong></td>
+        <td>${severityBadge(d.severity)}</td>
+        <td>${statusBadge(d.status)}</td>
+        <td>${(d.affected_population||0).toLocaleString()}</td>
+        <td>${fmtDate(d.start_date)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="viewDetail(${d.disaster_id})">👁 View</button>
+        </td>
+      </tr>`).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function viewDetail(id) {
+  try {
+    const d = await api.get('/disasters/' + id);
+    document.getElementById('detailTitle').textContent = `🌊 ${d.disaster_type} — ${d.location}`;
+    document.getElementById('detailContent').innerHTML = `
+      <div class="grid-2" style="gap:12px;margin-bottom:16px">
+        <div><span class="form-label">Severity</span>${severityBadge(d.severity)}</div>
+        <div><span class="form-label">Status</span>${statusBadge(d.status)}</div>
+        <div><span class="form-label">Start Date</span><br/>${fmtDateTime(d.start_date)}</div>
+        <div><span class="form-label">Affected Population</span><br/>${(d.affected_population||0).toLocaleString()}</div>
+      </div>
+      <div class="form-group"><span class="form-label">Description</span><p style="font-size:0.875rem;color:var(--text-muted)">${d.description||'—'}</p></div>
+      <div class="section-title">Affected Zones</div>
+      ${d.zones && d.zones.length ? `<div class="table-wrapper"><table>
+        <thead><tr><th>Zone</th><th>Type</th><th>Population</th><th>Evacuation</th></tr></thead>
+        <tbody>${d.zones.map(z=>`<tr><td>${z.zone_name}</td><td>${zoneBadge(z.zone_type)}</td><td>${(z.population||0).toLocaleString()}</td><td>${statusBadge(z.evacuation_status)||z.evacuation_status}</td></tr>`).join('')}</tbody>
+      </table></div>` : '<p style="color:var(--text-muted);font-size:0.85rem">No zones defined</p>'}`;
+    openModal('detailModal');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.getElementById('addDisasterForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  try {
+    await api.post('/disasters', body);
+    toast('Disaster reported successfully!','success');
+    closeModal('addDisasterModal');
+    e.target.reset();
+    loadDisasters();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadDisasters);
+</script>
+</body>
+</html>

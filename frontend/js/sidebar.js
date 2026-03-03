@@ -1,0 +1,44 @@
+// sidebar.js — Shared sidebar HTML injected into every page
+(function() {
+  const nav = `
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">🌊</span>
+    <div>
+      <div class="logo-text">DisasterRelief BD</div>
+      <div class="logo-sub">Response & Coordination</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-title">Overview</div>
+    <a href="index.html"      class="nav-item"><span class="nav-icon">📊</span>Dashboard</a>
+    <a href="disasters.html"  class="nav-item"><span class="nav-icon">🌊</span>Disasters</a>
+    <div class="nav-section-title" style="margin-top:8px">Response</div>
+    <a href="shelters.html"   class="nav-item"><span class="nav-icon">🏠</span>Shelters</a>
+    <a href="victims.html"    class="nav-item"><span class="nav-icon">👥</span>Victims</a>
+    <a href="family.html"     class="nav-item"><span class="nav-icon">❤️</span>Family Reunification</a>
+    <a href="volunteers.html" class="nav-item"><span class="nav-icon">🙋</span>Volunteers</a>
+    <div class="nav-section-title" style="margin-top:8px">Resources</div>
+    <a href="resources.html"  class="nav-item"><span class="nav-icon">📦</span>Resources</a>
+    <a href="donations.html"  class="nav-item"><span class="nav-icon">💰</span>Donations</a>
+    <div class="nav-section-title" style="margin-top:8px">Analytics</div>
+    <a href="reports.html"    class="nav-item"><span class="nav-icon">📋</span>Reports</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="sidebarUser">👤 Guest</span>
+      <a href="login.html" style="color:var(--text-muted);font-size:0.75rem">Logout</a>
+    </div>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>`;
+
+  // Inject sidebar at beginning of .layout
+  const layout = document.querySelector('.layout');
+  if (layout) layout.insertAdjacentHTML('afterbegin', nav);
+
+  // Show user
+  const userEl = document.getElementById('sidebarUser');
+  const user = sessionStorage.getItem('drUser');
+  if (userEl && user) userEl.textContent = '👤 ' + user;
+})();
