@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dashboard — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle" aria-label="Menu">☰</button>
+        <h1 class="page-title">🌊 <span>Live Dashboard</span></h1>
+        <p class="page-subtitle">Real-time disaster response overview</p>
+      </div>
+      <button class="btn btn-primary" onclick="loadAll()">🔄 Refresh</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-icon cyan">🌊</div><div><div class="stat-value" id="statDisasters">—</div><div class="stat-label">Active Disasters</div></div></div>
+      <div class="stat-card"><div class="stat-icon red">👥</div><div><div class="stat-value" id="statVictims">—</div><div class="stat-label">Total Victims</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">🙋</div><div><div class="stat-value" id="statVolunteers">—</div><div class="stat-label">Active Volunteers</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">💰</div><div><div class="stat-value" id="statDonations">—</div><div class="stat-label">Total Donations (৳)</div></div></div>
+      <div class="stat-card"><div class="stat-icon purple">🏠</div><div><div class="stat-value" id="statShelters">—</div><div class="stat-label">Open Shelters</div></div></div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Disaster Types</div></div>
+        <canvas id="chartTypes" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Victims by Status</div></div>
+        <canvas id="chartVictims" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Donations Trend</div></div>
+        <canvas id="chartDonations" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Bottom row: activity feed + quick actions + live table -->
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔔 Live Activity Feed</div>
+        </div>
+        <div class="activity-feed" id="activityFeed">
+          <div class="skeleton skeleton-row"></div>
+          <div class="skeleton skeleton-row"></div>
+          <div class="skeleton skeleton-row"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">⚡ Quick Actions</div></div>
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="location.href='disasters.html'"><span class="qa-icon">🌊</span><span class="qa-label">Report Disaster</span></button>
+          <button class="quick-action-btn" onclick="location.href='victims.html'"><span class="qa-icon">👤</span><span class="qa-label">Register Victim</span></button>
+          <button class="quick-action-btn" onclick="location.href='shelters.html'"><span class="qa-icon">🏠</span><span class="qa-label">Find Shelter</span></button>
+          <button class="quick-action-btn" onclick="location.href='volunteers.html'"><span class="qa-icon">🙋</span><span class="qa-label">Add Volunteer</span></button>
+          <button class="quick-action-btn" onclick="location.href='resources.html'"><span class="qa-icon">📦</span><span class="qa-label">Distribute</span></button>
+          <button class="quick-action-btn" onclick="location.href='donations.html'"><span class="qa-icon">💰</span><span class="qa-label">Record Donation</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Disasters Table -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">🔴 Active Disasters</div></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Disaster</th><th>Type</th><th>Severity</th><th>Victims</th><th>Missing</th><th>Volunteers</th><th>Status</th></tr></thead>
+          <tbody id="liveTable"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+const CHART_COLORS = ['#00d4ff','#7c3aed','#ff6b6b','#51cf66','#ffd43b','#ff9500','#20c997'];
+let charts = {};
+
+async function loadStats() {
+  try {
+    const d = await api.get('/dashboard');
+    const set = (id,val) => { const el=document.getElementById(id); if(el){ animateCounter(el, val); } };
+    set('statDisasters', d.disasters.active || 0);
+    set('statVictims',   d.victims.total || 0);
+    set('statVolunteers',d.volunteers.deployed || 0);
+    set('statDonations', d.donations.total_amount || 0);
+    set('statShelters',  d.shelters.open_count || 0);
+  } catch(e){ toast('Failed to load stats','error'); }
+}
+
+async function loadCharts() {
+  try {
+    const d = await api.get('/dashboard/charts');
+    const opts = {
+      responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } }
+    };
+    // Donut
+    if(charts.types) charts.types.destroy();
+    charts.types = new Chart(document.getElementById('chartTypes'), {
+      type:'doughnut',
+      data:{ labels: d.disasterTypes.map(r=>r.disaster_type), datasets:[{ data: d.disasterTypes.map(r=>r.count), backgroundColor:CHART_COLORS, borderWidth:2, borderColor:'rgba(0,0,0,0.3)' }] },
+      options:{ ...opts, cutout:'65%' }
+    });
+    // Bar - victims
+    if(charts.victims) charts.victims.destroy();
+    charts.victims = new Chart(document.getElementById('chartVictims'), {
+      type:'bar',
+      data:{ labels:d.victimStatus.map(r=>r.status), datasets:[{ label:'Count', data:d.victimStatus.map(r=>r.count), backgroundColor:CHART_COLORS, borderRadius:6 }] },
+      options:{ ...opts, scales:{ x:{ticks:{color:'#94a3b8'}}, y:{ticks:{color:'#94a3b8'}, grid:{color:'rgba(255,255,255,0.05)'}} }, plugins:{...opts.plugins,legend:{display:false}} }
+    });
+    // Line - donations
+    if(charts.donations) charts.donations.destroy();
+    charts.donations = new Chart(document.getElementById('chartDonations'), {
+      type:'line',
+      data:{ labels:d.donationTrend.map(r=>r.month), datasets:[{ label:'৳ Donations', data:d.donationTrend.map(r=>r.total||0), borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,0.1)', fill:true, tension:0.4, pointBackgroundColor:'#00d4ff' }] },
+      options:{ ...opts, scales:{ x:{ticks:{color:'#94a3b8'}}, y:{ticks:{color:'#94a3b8'}, grid:{color:'rgba(255,255,255,0.05)'}} }, plugins:{...opts.plugins,legend:{display:false}} }
+    });
+  } catch(e){ console.error(e); }
+}
+
+async function loadActivity() {
+  try {
+    const logs = await api.get('/dashboard/audit-log');
+    const feed = document.getElementById('activityFeed');
+    if(!logs.length){ feed.innerHTML='<p style="color:var(--text-muted);font-size:0.8rem;padding:10px 0">No recent activity</p>'; return; }
+    feed.innerHTML = logs.slice(0,15).map(l=>`
+      <div class="activity-item">
+        <div class="activity-dot ${l.action.toLowerCase()}"></div>
+        <div>
+          <div class="activity-text"><strong>${l.action}</strong> on ${l.table_name} #${l.record_id||''}</div>
+          <div class="activity-time">${timeAgo(l.timestamp)}</div>
+        </div>
+      </div>`).join('');
+  } catch(e){ console.error(e); }
+}
+
+async function loadLiveTable() {
+  try {
+    const rows = await api.get('/dashboard/live');
+    const tbody = document.getElementById('liveTable');
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No active disasters</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r=>`
+      <tr>
+        <td><strong>${r.location}</strong></td>
+        <td>${r.disaster_type}</td>
+        <td>${severityBadge(r.severity)}</td>
+        <td>${(r.total_victims||0).toLocaleString()}</td>
+        <td style="color:var(--accent)">${r.missing_count||0}</td>
+        <td>${r.volunteer_count||0}</td>
+        <td>${statusBadge(r.status)}</td>
+      </tr>`).join('');
+  } catch(e){ console.error(e); }
+}
+
+function loadAll(){
+  loadStats();
+  loadCharts();
+  loadActivity();
+  loadLiveTable();
+}
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>

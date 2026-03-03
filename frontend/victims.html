@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Victims — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">👥 <span>Victims</span></h1>
+        <p class="page-subtitle">Register and track affected individuals</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('addVictimModal')">➕ Register Victim</button>
+    </div>
+
+    <div class="filters">
+      <input class="form-control" id="searchName" placeholder="🔍 Search by name..." oninput="debounceSearch()" style="flex:1;min-width:200px"/>
+      <select class="form-control" id="filterStatus" onchange="loadVictims()">
+        <option value="">All Status</option>
+        <option>Safe</option><option>Missing</option><option>Injured</option><option>Critical</option><option>Deceased</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th>Age/Gender</th><th>Status</th><th>Disaster</th><th>Shelter</th><th>Condition</th><th>Registered</th></tr></thead>
+          <tbody id="victimsTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Victim Modal -->
+<div class="modal-overlay" id="addVictimModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">👤 Register Victim</h3>
+      <button class="modal-close" onclick="closeModal('addVictimModal')">✕</button>
+    </div>
+    <form id="addVictimForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input class="form-control" name="name" required placeholder="Md. Rahim Uddin"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" name="status">
+            <option>Safe</option><option>Missing</option><option>Injured</option><option>Critical</option><option>Deceased</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Age</label>
+          <input class="form-control" name="age" type="number" min="0" max="120"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gender</label>
+          <select class="form-control" name="gender">
+            <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contact</label>
+          <input class="form-control" name="contact" placeholder="01711-000000"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">NID Number</label>
+          <input class="form-control" name="nid_number" placeholder="1991234560000"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Medical Condition</label>
+        <input class="form-control" name="medical_condition" placeholder="e.g. Diabetes, Fracture"/>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addVictimModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">👤 Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Update Status Modal -->
+<div class="modal-overlay" id="updateStatusModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3 class="modal-title">Update Status</h3>
+      <button class="modal-close" onclick="closeModal('updateStatusModal')">✕</button>
+    </div>
+    <input type="hidden" id="updateVictimId"/>
+    <div class="form-group">
+      <label class="form-label">New Status</label>
+      <select class="form-control" id="newStatus">
+        <option>Safe</option><option>Missing</option><option>Injured</option><option>Critical</option><option>Deceased</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('updateStatusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="updateStatus()">Update</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+let searchTimeout;
+function debounceSearch(){ clearTimeout(searchTimeout); searchTimeout=setTimeout(loadVictims,400); }
+
+async function loadVictims(){
+  const name   = document.getElementById('searchName').value.trim();
+  const status = document.getElementById('filterStatus').value;
+  const tbody  = document.getElementById('victimsTable');
+  skeletonRows(tbody,8);
+  try {
+    let data;
+    if(name) {
+      data = await api.get(`/victims/search?name=${encodeURIComponent(name)}`);
+    } else {
+      const p = new URLSearchParams();
+      if(status) p.set('status',status);
+      data = await api.get('/victims?' + p);
+    }
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">No victims found</td></tr>'; return; }
+    tbody.innerHTML = data.map(v=>`
+      <tr>
+        <td>${v.victim_id}</td>
+        <td><strong>${v.name}</strong></td>
+        <td>${v.age||'—'} / ${v.gender||'—'}</td>
+        <td>${statusBadge(v.status)}</td>
+        <td style="font-size:0.8rem">${v.disaster_type||'—'}</td>
+        <td style="font-size:0.8rem">${v.shelter_name||'—'}</td>
+        <td style="font-size:0.75rem;color:var(--text-muted)">${v.medical_condition||'—'}</td>
+        <td style="font-size:0.75rem">${fmtDate(v.registered_at)}</td>
+      </tr>`).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function openUpdateStatus(id, current) {
+  document.getElementById('updateVictimId').value = id;
+  document.getElementById('newStatus').value = current;
+  openModal('updateStatusModal');
+}
+
+async function updateStatus() {
+  const id     = document.getElementById('updateVictimId').value;
+  const status = document.getElementById('newStatus').value;
+  try {
+    await api.put('/victims/'+id, { status });
+    toast('Status updated!','success');
+    closeModal('updateStatusModal');
+    loadVictims();
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.getElementById('addVictimForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/victims', body);
+    toast('Victim registered!','success');
+    closeModal('addVictimModal');
+    e.target.reset();
+    loadVictims();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadVictims);
+</script>
+</body>
+</html>

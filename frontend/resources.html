@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Resources — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">📦 <span>Resources</span></h1>
+        <p class="page-subtitle">Inventory management and distribution tracking</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="showTab('dist')">📤 Distribution History</button>
+        <button class="btn btn-ghost" onclick="openModal('distributeModal')">📤 Distribute</button>
+        <button class="btn btn-primary" onclick="openModal('addResourceModal')">➕ Add Resource</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:20px">
+      <button class="btn btn-primary btn-sm" id="tabInventory" onclick="showTab('inventory')">📦 Inventory</button>
+      <button class="btn btn-ghost btn-sm" id="tabDist" onclick="showTab('dist')">📤 Distribution History</button>
+    </div>
+
+    <!-- Inventory Tab -->
+    <div id="inventoryTab">
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>#</th><th>Resource</th><th>Category</th><th>Stock</th><th>Unit</th><th>Warehouse</th><th>Expiry</th><th>Status</th></tr></thead>
+            <tbody id="resourceTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Distribution History Tab -->
+    <div id="distTab" style="display:none">
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>#</th><th>Resource</th><th>Shelter</th><th>Zone</th><th>Qty</th><th>Distributed By</th><th>Date</th></tr></thead>
+            <tbody id="distTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Resource Modal -->
+<div class="modal-overlay" id="addResourceModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">📦 Add Resource</h3>
+      <button class="modal-close" onclick="closeModal('addResourceModal')">✕</button>
+    </div>
+    <form id="addResourceForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Resource Name *</label>
+          <input class="form-control" name="resource_name" required placeholder="e.g. Rice 50kg bags"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select class="form-control" name="category" required>
+            <option>Food</option><option>Water</option><option>Medicine</option>
+            <option>Clothing</option><option>Equipment</option><option>Shelter Material</option><option>Fuel</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quantity *</label>
+          <input class="form-control" name="quantity" type="number" min="0" required placeholder="1000"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit</label>
+          <input class="form-control" name="unit" placeholder="bags, liters, pieces"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Warehouse Location</label>
+        <input class="form-control" name="warehouse_location" placeholder="e.g. Dhaka Central Warehouse"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Expiry Date</label>
+          <input class="form-control" name="expiry_date" type="date"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Min Stock Level</label>
+          <input class="form-control" name="min_stock_level" type="number" placeholder="100"/>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addResourceModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">📦 Add Resource</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Distribute Modal -->
+<div class="modal-overlay" id="distributeModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 class="modal-title">📤 Distribute Resources</h3>
+      <button class="modal-close" onclick="closeModal('distributeModal')">✕</button>
+    </div>
+    <form id="distributeForm">
+      <div class="form-group">
+        <label class="form-label">Resource ID *</label>
+        <input class="form-control" name="resource_id" type="number" required placeholder="Resource ID"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Shelter ID *</label>
+        <input class="form-control" name="shelter_id" type="number" required placeholder="Shelter ID"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity *</label>
+        <input class="form-control" name="quantity" type="number" min="1" required placeholder="100"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Volunteer ID (Distributor)</label>
+        <input class="form-control" name="volunteer_id" type="number" placeholder="Volunteer ID"/>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('distributeModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">📤 Distribute</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+function showTab(t) {
+  document.getElementById('inventoryTab').style.display = t==='inventory' ? '' : 'none';
+  document.getElementById('distTab').style.display      = t==='dist'      ? '' : 'none';
+  document.getElementById('tabInventory').className = t==='inventory' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('tabDist').className      = t==='dist'      ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  if(t==='dist') loadDistributions();
+}
+
+async function loadResources() {
+  const tbody = document.getElementById('resourceTable');
+  skeletonRows(tbody, 8);
+  try {
+    const data = await api.get('/resources');
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px">No resources found</td></tr>'; return; }
+    tbody.innerHTML = data.map(r=>{
+      const pct = Math.min(100, Math.round((r.quantity/Math.max(r.min_stock_level,1))*100));
+      const low = r.is_low_stock || r.quantity < r.min_stock_level;
+      return `<tr style="${low?'background:rgba(255,107,107,0.05)':''}">
+        <td>${r.resource_id}</td>
+        <td><strong>${r.resource_name}</strong>${low?'<span style="color:var(--accent);margin-left:6px" title="Low Stock">⚠️</span>':''}</td>
+        <td><span class="badge" style="background:rgba(0,212,255,0.1);color:var(--primary)">${r.category}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;min-width:80px">
+              <div class="progress-bar-outer"><div class="progress-bar-inner ${low?'red':'green'}" style="width:${pct}%"></div></div>
+            </div>
+            <span style="font-size:0.8rem;white-space:nowrap;color:${low?'var(--accent)':'var(--text)'}">${r.quantity.toLocaleString()}</span>
+          </div>
+        </td>
+        <td>${r.unit||'—'}</td>
+        <td style="font-size:0.78rem">${r.warehouse_location||'—'}</td>
+        <td style="font-size:0.78rem">${r.expiry_date?fmtDate(r.expiry_date):'—'}</td>
+        <td>${low?'<span class="badge badge-full">⚠️ Low</span>':'<span class="badge badge-safe">OK</span>'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function loadDistributions() {
+  const tbody = document.getElementById('distTable');
+  skeletonRows(tbody,7);
+  try {
+    const data = await api.get('/resources/distributions');
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">No distributions yet</td></tr>'; return; }
+    tbody.innerHTML = data.map(d=>`
+      <tr>
+        <td>${d.distribution_id}</td>
+        <td>${d.resource_name} <span class="badge" style="background:rgba(0,212,255,0.1);color:var(--primary)">${d.category}</span></td>
+        <td style="font-size:0.8rem">${d.shelter_name||'—'}</td>
+        <td style="font-size:0.8rem">${d.zone_name||'—'}</td>
+        <td><strong>${d.quantity_distributed.toLocaleString()}</strong></td>
+        <td style="font-size:0.8rem">${d.volunteer_name||'—'}</td>
+        <td style="font-size:0.78rem">${fmtDateTime(d.distribution_date)}</td>
+      </tr>`).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.getElementById('addResourceForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/resources', body);
+    toast('Resource added!','success');
+    closeModal('addResourceModal');
+    e.target.reset();
+    loadResources();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.getElementById('distributeForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/resources/distributions', body);
+    toast('Resources distributed!','success');
+    closeModal('distributeModal');
+    e.target.reset();
+    loadResources();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadResources);
+</script>
+</body>
+</html>

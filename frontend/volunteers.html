@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Volunteers — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">🙋 <span>Volunteers</span></h1>
+        <p class="page-subtitle">Manage volunteer deployment and leaderboard</p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="openModal('matchModal')">🎯 Match Volunteers</button>
+        <button class="btn btn-primary" onclick="openModal('addVolModal')">➕ Register</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:20px">
+      <button class="btn btn-primary btn-sm" id="tabList" onclick="showTab('list')">📋 All Volunteers</button>
+      <button class="btn btn-ghost btn-sm" id="tabLeader" onclick="showTab('leader')">🏆 Leaderboard</button>
+    </div>
+
+    <!-- All Volunteers Tab -->
+    <div id="listTab">
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Skills</th><th>Status</th><th>Hours</th><th>Rating</th><th>Assigned Disaster</th></tr></thead>
+            <tbody id="volTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard Tab -->
+    <div id="leaderTab" style="display:none">
+      <div id="leaderList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Match Volunteers Modal -->
+<div class="modal-overlay" id="matchModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🎯 Match Volunteers by Skill</h3>
+      <button class="modal-close" onclick="closeModal('matchModal')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Skill *</label>
+        <select class="form-control" id="matchSkill">
+          <option>Medical</option><option>Rescue</option><option>Cooking</option>
+          <option>Driving</option><option>Counseling</option><option>Engineering</option><option>Communication</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="matchVolunteers()" style="width:100%;justify-content:center">🔍 Find Matches</button>
+    <div id="matchResults" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- Register Volunteer Modal -->
+<div class="modal-overlay" id="addVolModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🙋 Register Volunteer</h3>
+      <button class="modal-close" onclick="closeModal('addVolModal')">✕</button>
+    </div>
+    <form id="addVolForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input class="form-control" name="name" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-control" name="email" type="email"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-control" name="phone" placeholder="01711-000000"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Availability</label>
+          <select class="form-control" name="availability">
+            <option>Available</option><option>Deployed</option><option>Unavailable</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Skills (comma-separated)</label>
+        <input class="form-control" name="skills" placeholder="Medical,Rescue,Cooking"/>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addVolModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">🙋 Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+function showTab(t) {
+  document.getElementById('listTab').style.display   = t==='list' ? '' : 'none';
+  document.getElementById('leaderTab').style.display = t==='leader' ? '' : 'none';
+  document.getElementById('tabList').className   = t==='list'   ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('tabLeader').className = t==='leader' ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  if(t==='leader') loadLeaderboard();
+}
+
+async function loadVolunteers() {
+  const tbody = document.getElementById('volTable');
+  skeletonRows(tbody,7);
+  try {
+    const data = await api.get('/volunteers');
+    if(!data.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">No volunteers found</td></tr>'; return; }
+    tbody.innerHTML = data.map(v=>`
+      <tr>
+        <td>${v.volunteer_id}</td>
+        <td><strong>${v.name}</strong>${v.email?`<br/><small style="color:var(--text-muted)">${v.email}</small>`:''}</td>
+        <td>${skillTags(v.skills)}</td>
+        <td>${statusBadge(v.availability)}</td>
+        <td>${(v.hours_contributed||0).toFixed(1)}h</td>
+        <td>${renderRating(v.rating||0)}</td>
+        <td style="font-size:0.8rem">${v.disaster_type||'—'}</td>
+      </tr>`).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function renderRating(r) {
+  const stars = Math.round(r);
+  return '⭐'.repeat(stars) + `<span style="color:var(--text-muted);font-size:0.75rem"> (${Number(r).toFixed(2)})</span>`;
+}
+
+async function loadLeaderboard() {
+  const list = document.getElementById('leaderList');
+  list.innerHTML = '<div class="skeleton skeleton-card"></div>'.repeat(3);
+  try {
+    const data = await api.get('/volunteers/leaderboard');
+    list.innerHTML = data.map((v,i)=>{
+      const badge = v.hours_contributed>=100?'⭐ Elite': v.hours_contributed>=50?'✅ Experienced':'🆕 New';
+      const medal = i===0?'🥇': i===1?'🥈': i===2?'🥉': `#${v.volunteer_rank}`;
+      return `
+      <div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:16px">
+        <div style="font-size:1.8rem;min-width:48px;text-align:center">${medal}</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px">
+            <strong>${v.name}</strong>
+            <span class="badge" style="background:rgba(124,58,237,0.2);color:#a78bfa">${badge}</span>
+          </div>
+          <div style="margin-top:4px">${skillTags(v.skills)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.1rem;font-weight:700;color:var(--primary)">${(v.hours_contributed||0).toFixed(0)}h</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">${renderRating(v.rating||0)}</div>
+          <div>${statusBadge(v.availability)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e){ toast(e.message,'error'); }
+}
+
+async function matchVolunteers() {
+  const skill = document.getElementById('matchSkill').value;
+  const res   = document.getElementById('matchResults');
+  res.innerHTML='<div class="skeleton skeleton-row"></div>';
+  try {
+    const data = await api.get(`/volunteers/match?skill=${encodeURIComponent(skill)}`);
+    if(!data.length){ res.innerHTML='<p style="color:var(--text-muted)">No available volunteers with this skill</p>'; return; }
+    res.innerHTML = data.map((v,i)=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <strong>${i+1}. ${v.name}</strong>
+          <div style="font-size:0.75rem;color:var(--text-muted)">${v.phone||''}</div>
+          <div style="margin-top:2px">${skillTags(v.skills)}</div>
+        </div>
+        <div style="text-align:right">
+          ${renderRating(v.rating||0)}
+          <div style="font-size:0.75rem;color:var(--text-muted)">${(v.hours_contributed||0).toFixed(0)}h</div>
+        </div>
+      </div>`).join('');
+  } catch(e){ toast(e.message,'error'); res.innerHTML=''; }
+}
+
+document.getElementById('addVolForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    await api.post('/volunteers', body);
+    toast('Volunteer registered!','success');
+    closeModal('addVolModal');
+    e.target.reset();
+    loadVolunteers();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadVolunteers);
+</script>
+</body>
+</html>
