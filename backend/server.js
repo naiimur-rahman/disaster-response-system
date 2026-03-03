@@ -52,6 +52,16 @@ app.use((err, req, res, _next) => {
 
 // ── Start Server ───────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10);
-app.listen(PORT, () => {
+const { testConnection } = require('./config/database');
+
+app.listen(PORT, async () => {
     console.log(`🌊 Disaster Response System running on http://localhost:${PORT}`);
+    try {
+        await testConnection();
+        console.log('✅ Database connected successfully');
+    } catch (err) {
+        console.error(`❌ Database connection failed: ${err.code || ''} ${err.message}`);
+        console.error('   Ensure MySQL is running and the .env file is configured correctly.');
+        console.error('   See backend/.env.example for the required environment variables.');
+    }
 });

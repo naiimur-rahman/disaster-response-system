@@ -1,7 +1,8 @@
 // routes/dashboard.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/dashboard — Main dashboard stats
 router.get('/', async (req, res) => {
@@ -13,6 +14,7 @@ router.get('/', async (req, res) => {
         const [[shelters]]   = await db.query("SELECT COUNT(*) AS total, SUM(CASE WHEN status='Open' THEN 1 ELSE 0 END) AS open_count FROM shelters");
         res.json({ disasters, victims, volunteers, donations, shelters });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -23,6 +25,7 @@ router.get('/live', async (req, res) => {
         const [rows] = await db.query('SELECT * FROM live_dashboard');
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -33,6 +36,7 @@ router.get('/audit-log', async (req, res) => {
         const [rows] = await db.query('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT 50');
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -52,6 +56,7 @@ router.get('/charts', async (req, res) => {
         );
         res.json({ disasterTypes, victimStatus, donationTrend });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });

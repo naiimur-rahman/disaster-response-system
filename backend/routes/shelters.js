@@ -1,7 +1,8 @@
 // routes/shelters.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/shelters — List all shelters
 router.get('/', async (req, res) => {
@@ -9,6 +10,7 @@ router.get('/', async (req, res) => {
         const [rows] = await db.query('SELECT * FROM shelters ORDER BY name');
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -21,6 +23,7 @@ router.get('/nearest', async (req, res) => {
         const [results] = await db.query('CALL FindNearestShelter(?, ?)', [parseFloat(lat), parseFloat(lon)]);
         res.json(results[0]);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -32,6 +35,7 @@ router.get('/:id', async (req, res) => {
         if (!rows.length) return res.status(404).json({ error: 'Not found' });
         res.json(rows[0]);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -50,6 +54,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ shelter_id: result.insertId, message: 'Shelter created' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -68,6 +73,7 @@ router.put('/:id', async (req, res) => {
         );
         res.json({ message: 'Shelter updated' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });

@@ -1,7 +1,8 @@
 // routes/resources.js — handles both /api/resources and /api/distributions
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // ── Resources ───────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ router.get('/', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -36,6 +38,7 @@ router.get('/distributions', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -50,6 +53,7 @@ router.post('/distributions', async (req, res) => {
         if (err.sqlMessage && err.sqlMessage.includes('Insufficient')) {
             return res.status(400).json({ error: err.sqlMessage });
         }
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -64,6 +68,7 @@ router.get('/:id', async (req, res) => {
         if (!rows.length) return res.status(404).json({ error: 'Not found' });
         res.json(rows[0]);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -80,6 +85,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ resource_id: result.insertId, message: 'Resource added' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });

@@ -1,7 +1,8 @@
 // routes/donations.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/donations — Donation transparency list (via view)
 router.get('/', async (req, res) => {
@@ -9,6 +10,7 @@ router.get('/', async (req, res) => {
         const [rows] = await db.query('SELECT * FROM donation_transparency');
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -36,6 +38,7 @@ router.get('/stats', async (req, res) => {
         );
         res.json({ totals: totals[0], byType, monthly });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -52,6 +55,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ donation_id: result.insertId, message: 'Donation recorded' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });

@@ -1,7 +1,8 @@
 // routes/volunteers.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/volunteers — List all volunteers
 router.get('/', async (req, res) => {
@@ -16,6 +17,7 @@ router.get('/', async (req, res) => {
         );
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -26,6 +28,7 @@ router.get('/leaderboard', async (req, res) => {
         const [rows] = await db.query('SELECT * FROM volunteer_leaderboard');
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -38,6 +41,7 @@ router.get('/match', async (req, res) => {
         const [results] = await db.query('CALL MatchVolunteers(?, ?)', [disaster_id || null, skill]);
         res.json(results[0]);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -49,6 +53,7 @@ router.get('/:id', async (req, res) => {
         if (!rows.length) return res.status(404).json({ error: 'Not found' });
         res.json(rows[0]);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -68,6 +73,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ volunteer_id: result.insertId, message: 'Volunteer registered' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -87,6 +93,7 @@ router.put('/:id', async (req, res) => {
         );
         res.json({ message: 'Volunteer updated' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });

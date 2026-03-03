@@ -1,7 +1,8 @@
 // routes/disasters.js
-const express = require('express');
-const router  = express.Router();
-const db      = require('../config/database');
+const express          = require('express');
+const router           = express.Router();
+const db               = require('../config/database');
+const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
 
 // GET /api/disasters — List all disasters with optional filters
 router.get('/', async (req, res) => {
@@ -16,6 +17,7 @@ router.get('/', async (req, res) => {
         const [rows] = await db.query(sql, params);
         res.json(rows);
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -28,6 +30,7 @@ router.get('/:id', async (req, res) => {
         const [zones] = await db.query('SELECT * FROM affected_zones WHERE disaster_id = ?', [req.params.id]);
         res.json({ ...disasters[0], zones });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -46,6 +49,7 @@ router.post('/', async (req, res) => {
         );
         res.status(201).json({ disaster_id: result.insertId, message: 'Disaster created' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -64,6 +68,7 @@ router.put('/:id', async (req, res) => {
         );
         res.json({ message: 'Disaster updated' });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
@@ -82,6 +87,7 @@ router.get('/:id/report', async (req, res) => {
             resources:  results[0][5] || [],
         });
     } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
     }
 });
