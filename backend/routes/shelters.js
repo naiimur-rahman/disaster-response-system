@@ -2,13 +2,24 @@
 const express          = require('express');
 const router           = express.Router();
 const db               = require('../config/database');
+const { authenticate } = require('../middleware/auth');
+const { validateShelter } = require('../middleware/validate');
 const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
+
+// ── Pagination helper ───────────────────────────────────────
+function paginate(req) {
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    return { page, limit, offset: (page - 1) * limit };
+}
 
 // GET /api/shelters — List all shelters
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM shelters ORDER BY name');
-        res.json(rows);
+        const { page, limit, offset } = paginate(req);
+        const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM shelters');
+        const [rows]        = await db.query('SELECT * FROM shelters ORDER BY name LIMIT ? OFFSET ?', [limit, offset]);
+        res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
@@ -41,7 +52,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/shelters — Add shelter
-router.post('/', async (req, res) => {
+router.post('/', authenticate, validateShelter, async (req, res) => {
     try {
         const { name, location, latitude, longitude, max_capacity, has_medical_facility,
                 has_food_supply, contact_number } = req.body;
@@ -60,7 +71,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/shelters/:id — Update shelter
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
     try {
         const { name, location, max_capacity, current_occupancy, status,
                 has_medical_facility, has_food_supply, contact_number } = req.body;
@@ -72,6 +83,19 @@ router.put('/:id', async (req, res) => {
              has_medical_facility ? 1 : 0, has_food_supply ? 1 : 0, contact_number || null, req.params.id]
         );
         res.json({ message: 'Shelter updated' });
+    } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/shelters/:id — Delete shelter
+router.delete('/:id', authenticate, async (req, res) => {
+    try {
+        const [check] = await db.query('SELECT shelter_id FROM shelters WHERE shelter_id = ?', [req.params.id]);
+        if (!check.length) return res.status(404).json({ error: 'Not found' });
+        await db.query('DELETE FROM shelters WHERE shelter_id = ?', [req.params.id]);
+        res.json({ message: 'Shelter deleted' });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });

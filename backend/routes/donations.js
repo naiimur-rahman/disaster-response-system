@@ -2,13 +2,24 @@
 const express          = require('express');
 const router           = express.Router();
 const db               = require('../config/database');
+const { authenticate } = require('../middleware/auth');
+const { validateDonation } = require('../middleware/validate');
 const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
+
+// ── Pagination helper ───────────────────────────────────────
+function paginate(req) {
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    return { page, limit, offset: (page - 1) * limit };
+}
 
 // GET /api/donations — Donation transparency list (via view)
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM donation_transparency');
-        res.json(rows);
+        const { page, limit, offset } = paginate(req);
+        const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM donation_transparency');
+        const [rows]        = await db.query('SELECT * FROM donation_transparency LIMIT ? OFFSET ?', [limit, offset]);
+        res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
@@ -44,7 +55,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // POST /api/donations — Record donation
-router.post('/', async (req, res) => {
+router.post('/', authenticate, validateDonation, async (req, res) => {
     try {
         const { donor_id, disaster_id, donation_type, amount, item_description, quantity } = req.body;
         const [result] = await db.query(
@@ -54,6 +65,35 @@ router.post('/', async (req, res) => {
              amount || 0, item_description || null, quantity || 0]
         );
         res.status(201).json({ donation_id: result.insertId, message: 'Donation recorded' });
+    } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/donations/:id — Delete donation
+router.delete('/:id', authenticate, async (req, res) => {
+    try {
+        const [check] = await db.query('SELECT donation_id FROM donations WHERE donation_id = ?', [req.params.id]);
+        if (!check.length) return res.status(404).json({ error: 'Not found' });
+        await db.query('DELETE FROM donations WHERE donation_id = ?', [req.params.id]);
+        res.json({ message: 'Donation deleted' });
+    } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/donations/export — Export donations as CSV
+router.get('/export', async (req, res) => {
+    try {
+        const { Parser } = require('json2csv');
+        const [rows] = await db.query('SELECT * FROM donation_transparency');
+        const parser = new Parser();
+        const csv    = parser.parse(rows);
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="donations.csv"');
+        res.send(csv);
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });

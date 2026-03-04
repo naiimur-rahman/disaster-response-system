@@ -2,19 +2,32 @@
 const express          = require('express');
 const router           = express.Router();
 const db               = require('../config/database');
+const { authenticate } = require('../middleware/auth');
+const { validateResource } = require('../middleware/validate');
 const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
+
+// ── Pagination helper ───────────────────────────────────────
+function paginate(req) {
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    return { page, limit, offset: (page - 1) * limit };
+}
 
 // ── Resources ───────────────────────────────────────────────
 
 // GET /api/resources — List all resources with low-stock flag
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query(
+        const { page, limit, offset } = paginate(req);
+        const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM resources');
+        const [rows]        = await db.query(
             `SELECT *, (quantity < min_stock_level) AS is_low_stock
              FROM resources
-             ORDER BY category, resource_name`
+             ORDER BY category, resource_name
+             LIMIT ? OFFSET ?`,
+            [limit, offset]
         );
-        res.json(rows);
+        res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
@@ -44,7 +57,7 @@ router.get('/distributions', async (req, res) => {
 });
 
 // POST /api/resources/distributions — Distribute resources (calls AllocateResources procedure)
-router.post('/distributions', async (req, res) => {
+router.post('/distributions', authenticate, async (req, res) => {
     try {
         const { resource_id, shelter_id, quantity, volunteer_id } = req.body;
         await db.query('CALL AllocateResources(?, ?, ?, ?)', [resource_id, shelter_id, quantity, volunteer_id || null]);
@@ -74,7 +87,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/resources — Add resource
-router.post('/', async (req, res) => {
+router.post('/', authenticate, validateResource, async (req, res) => {
     try {
         const { resource_name, category, quantity, unit, warehouse_location, expiry_date, min_stock_level } = req.body;
         const [result] = await db.query(
@@ -84,6 +97,19 @@ router.post('/', async (req, res) => {
              expiry_date || null, min_stock_level || 100]
         );
         res.status(201).json({ resource_id: result.insertId, message: 'Resource added' });
+    } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/resources/:id — Delete resource
+router.delete('/:id', authenticate, async (req, res) => {
+    try {
+        const [check] = await db.query('SELECT resource_id FROM resources WHERE resource_id = ?', [req.params.id]);
+        if (!check.length) return res.status(404).json({ error: 'Not found' });
+        await db.query('DELETE FROM resources WHERE resource_id = ?', [req.params.id]);
+        res.json({ message: 'Resource deleted' });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
