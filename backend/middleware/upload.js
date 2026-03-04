@@ -2,9 +2,15 @@
 const multer = require('multer');
 const path   = require('path');
 
+// Vercel's filesystem is read-only outside of /tmp; use /tmp when running on Vercel.
+// Note: files written to /tmp are ephemeral and will be lost between invocations.
+const uploadDir = process.env.VERCEL
+    ? '/tmp'
+    : path.join(__dirname, '..', '..', 'uploads');
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '..', '..', 'uploads'));
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
         const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
