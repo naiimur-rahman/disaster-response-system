@@ -4,28 +4,59 @@
 /* ── Configuration ─────────────────────────────────────────── */
 const API_BASE = window.location.origin + '/api';
 
+/* ── Auth Helpers ──────────────────────────────────────────── */
+function getToken() {
+    return sessionStorage.getItem('drToken');
+}
+function authHeaders() {
+    const token = getToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+/** Redirect to login if no token present (call on protected pages) */
+function requireAuth() {
+    if (!getToken()) {
+        window.location.href = 'login.html';
+        return false;
+    }
+    return true;
+}
+
 /* ── API Helper ────────────────────────────────────────────── */
 const api = {
     async get(path) {
-        const res = await fetch(API_BASE + path);
+        const res = await fetch(API_BASE + path, {
+            headers: { ...authHeaders() },
+        });
+        if (res.status === 401) { sessionStorage.clear(); window.location.href = 'login.html'; return; }
         if (!res.ok) throw new Error((await res.json()).error || res.statusText);
         return res.json();
     },
     async post(path, body) {
         const res = await fetch(API_BASE + path, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify(body),
         });
+        if (res.status === 401) { sessionStorage.clear(); window.location.href = 'login.html'; return; }
         if (!res.ok) throw new Error((await res.json()).error || res.statusText);
         return res.json();
     },
     async put(path, body) {
         const res = await fetch(API_BASE + path, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify(body),
         });
+        if (res.status === 401) { sessionStorage.clear(); window.location.href = 'login.html'; return; }
+        if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+        return res.json();
+    },
+    async del(path) {
+        const res = await fetch(API_BASE + path, {
+            method: 'DELETE',
+            headers: { ...authHeaders() },
+        });
+        if (res.status === 401) { sessionStorage.clear(); window.location.href = 'login.html'; return; }
         if (!res.ok) throw new Error((await res.json()).error || res.statusText);
         return res.json();
     },

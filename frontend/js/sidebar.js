@@ -18,6 +18,8 @@
     <a href="victims.html"    class="nav-item"><span class="nav-icon">👥</span>Victims</a>
     <a href="family.html"     class="nav-item"><span class="nav-icon">❤️</span>Family Reunification</a>
     <a href="volunteers.html" class="nav-item"><span class="nav-icon">🙋</span>Volunteers</a>
+    <a href="rescue.html"     class="nav-item"><span class="nav-icon">🚁</span>Rescue Operations</a>
+    <a href="contacts.html"   class="nav-item"><span class="nav-icon">📞</span>Emergency Contacts</a>
     <div class="nav-section-title" style="margin-top:8px">Resources</div>
     <a href="resources.html"  class="nav-item"><span class="nav-icon">📦</span>Resources</a>
     <a href="donations.html"  class="nav-item"><span class="nav-icon">💰</span>Donations</a>
@@ -27,8 +29,9 @@
   <div class="sidebar-footer">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <span id="sidebarUser">👤 Guest</span>
-      <a href="login.html" style="color:var(--text-muted);font-size:0.75rem">Logout</a>
+      <a href="login.html" id="logoutLink" style="color:var(--text-muted);font-size:0.75rem">Logout</a>
     </div>
+    <div id="sidebarRole" style="font-size:0.7rem;color:var(--text-muted);margin-top:4px"></div>
   </div>
 </aside>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>`;
@@ -37,8 +40,21 @@
   const layout = document.querySelector('.layout');
   if (layout) layout.insertAdjacentHTML('afterbegin', nav);
 
-  // Show user
+  // Show user info from token
   const userEl = document.getElementById('sidebarUser');
-  const user = sessionStorage.getItem('drUser');
+  const roleEl = document.getElementById('sidebarRole');
+  const user   = sessionStorage.getItem('drUser');
+  const role   = sessionStorage.getItem('drRole');
   if (userEl && user) userEl.textContent = '👤 ' + user;
+  if (roleEl && role) roleEl.textContent = role;
+
+  // Logout handler
+  const logoutLink = document.getElementById('logoutLink');
+  if (logoutLink) {
+    logoutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      sessionStorage.clear();
+      window.location.href = 'login.html';
+    });
+  }
 })();

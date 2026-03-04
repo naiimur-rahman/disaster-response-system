@@ -59,16 +59,28 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   const txt = document.getElementById('loginBtnText');
   btn.disabled = true;
   txt.innerHTML = '<span class="loader"></span> Signing in...';
-  // Simple demo auth — just store user in sessionStorage
-  const user = document.getElementById('username').value.trim();
-  const pass = document.getElementById('password').value;
-  if(user && pass){
-    setTimeout(()=>{
-      sessionStorage.setItem('drUser', user);
-      window.location.href = 'index.html';
-    }, 800);
-  } else {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  if (!username || !password) {
     toast('Please enter credentials','error');
+    btn.disabled = false;
+    txt.innerHTML = '🔐 Sign In';
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    sessionStorage.setItem('drToken', data.token);
+    sessionStorage.setItem('drUser', data.user.username);
+    sessionStorage.setItem('drRole', data.user.role);
+    window.location.href = 'index.html';
+  } catch (err) {
+    toast(err.message, 'error');
     btn.disabled = false;
     txt.innerHTML = '🔐 Sign In';
   }

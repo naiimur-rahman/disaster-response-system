@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Rescue Operations — DisasterRelief BD</title>
+<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/responsive.css"/>
+</head>
+<body>
+<div class="layout">
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <button class="menu-toggle">☰</button>
+        <h1 class="page-title">🚁 <span>Rescue Operations</span></h1>
+        <p class="page-subtitle">Track and manage field rescue operations</p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('addRescueModal')">➕ New Operation</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>#</th><th>Operation</th><th>Disaster</th><th>Zone</th><th>Team Lead</th><th>Status</th><th>Rescued</th><th>Start Time</th><th>Actions</th></tr></thead>
+          <tbody id="rescueTable"></tbody>
+        </table>
+      </div>
+      <div id="paginationBar" style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.85rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Operation Modal -->
+<div class="modal-overlay" id="addRescueModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">🚁 New Rescue Operation</h3>
+      <button class="modal-close" onclick="closeModal('addRescueModal')">✕</button>
+    </div>
+    <form id="addRescueForm">
+      <div class="form-group">
+        <label class="form-label">Operation Name *</label>
+        <input class="form-control" name="operation_name" placeholder="e.g. Sylhet Sadar Flood Rescue" required/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" name="status">
+            <option>Planned</option><option>In Progress</option><option>Completed</option><option>Aborted</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">People Rescued</label>
+          <input class="form-control" name="people_rescued" type="number" min="0" placeholder="0"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Start Time</label>
+          <input class="form-control" name="start_time" type="datetime-local"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Time</label>
+          <input class="form-control" name="end_time" type="datetime-local"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-control" name="notes" rows="3" placeholder="Operation notes..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('addRescueModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">🚁 Create Operation</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editRescueModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">✏️ Edit Rescue Operation</h3>
+      <button class="modal-close" onclick="closeModal('editRescueModal')">✕</button>
+    </div>
+    <form id="editRescueForm">
+      <input type="hidden" name="operation_id"/>
+      <div class="form-group">
+        <label class="form-label">Operation Name *</label>
+        <input class="form-control" name="operation_name" required/>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" name="status">
+            <option>Planned</option><option>In Progress</option><option>Completed</option><option>Aborted</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">People Rescued</label>
+          <input class="form-control" name="people_rescued" type="number" min="0"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Start Time</label>
+          <input class="form-control" name="start_time" type="datetime-local"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Time</label>
+          <input class="form-control" name="end_time" type="datetime-local"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-control" name="notes" rows="3"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('editRescueModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+let currentPage = 1;
+
+const STATUS_MAP = {
+  'Planned':     '<span class="badge" style="background:rgba(99,102,241,0.2);color:#818cf8">Planned</span>',
+  'In Progress': '<span class="badge badge-active"><span class="pulse-dot"></span>In Progress</span>',
+  'Completed':   '<span class="badge badge-resolved">Completed</span>',
+  'Aborted':     '<span class="badge badge-closed">Aborted</span>',
+};
+
+async function loadRescue(page = 1) {
+  currentPage = page;
+  const tbody = document.getElementById('rescueTable');
+  skeletonRows(tbody, 9);
+  try {
+    const data = await api.get(`/rescue-operations?page=${page}&limit=20`);
+    if (!data || !data.data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px">No rescue operations found</td></tr>';
+      document.getElementById('paginationBar').textContent = '';
+      return;
+    }
+    tbody.innerHTML = data.data.map(r => `
+      <tr>
+        <td>${r.operation_id}</td>
+        <td><strong>${r.operation_name}</strong></td>
+        <td>${r.disaster_type ? `${r.disaster_type} — ${r.disaster_location||''}` : '—'}</td>
+        <td>${r.zone_name || '—'}</td>
+        <td>${r.team_lead_name || '—'}</td>
+        <td>${STATUS_MAP[r.status] || r.status}</td>
+        <td>${(r.people_rescued||0).toLocaleString()}</td>
+        <td>${fmtDateTime(r.start_time)}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick='editRescue(${JSON.stringify(r)})'>✏️ Edit</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteRescue(${r.operation_id})">🗑️</button>
+        </td>
+      </tr>`).join('');
+    const p = data.pagination;
+    document.getElementById('paginationBar').innerHTML =
+      `Page ${p.page} of ${p.totalPages} &nbsp;|&nbsp; Total: ${p.total}
+       ${p.page > 1 ? `<button class="btn btn-ghost btn-sm" onclick="loadRescue(${p.page-1})">◀ Prev</button>` : ''}
+       ${p.page < p.totalPages ? `<button class="btn btn-ghost btn-sm" onclick="loadRescue(${p.page+1})">Next ▶</button>` : ''}`;
+  } catch(e){ toast(e.message,'error'); }
+}
+
+function editRescue(r) {
+  const form = document.getElementById('editRescueForm');
+  form.operation_id.value    = r.operation_id;
+  form.operation_name.value  = r.operation_name;
+  form.status.value          = r.status;
+  form.people_rescued.value  = r.people_rescued || 0;
+  form.start_time.value      = r.start_time ? r.start_time.slice(0,16) : '';
+  form.end_time.value        = r.end_time   ? r.end_time.slice(0,16)   : '';
+  form.notes.value           = r.notes || '';
+  openModal('editRescueModal');
+}
+
+async function deleteRescue(id) {
+  if (!confirm('Delete this rescue operation?')) return;
+  try {
+    await api.del('/rescue-operations/' + id);
+    toast('Deleted','success');
+    loadRescue(currentPage);
+  } catch(e){ toast(e.message,'error'); }
+}
+
+document.getElementById('addRescueForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  try {
+    await api.post('/rescue-operations', body);
+    toast('Rescue operation created!','success');
+    closeModal('addRescueModal');
+    e.target.reset();
+    loadRescue();
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.getElementById('editRescueForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = Object.fromEntries(fd);
+  const id = body.operation_id;
+  delete body.operation_id;
+  try {
+    await api.put('/rescue-operations/' + id, body);
+    toast('Updated!','success');
+    closeModal('editRescueModal');
+    loadRescue(currentPage);
+  } catch(err){ toast(err.message,'error'); }
+});
+
+document.addEventListener('DOMContentLoaded', loadRescue);
+</script>
+</body>
+</html>

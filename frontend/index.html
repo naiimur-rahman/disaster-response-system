@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/style.css"/>
 <link rel="stylesheet" href="css/responsive.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 <div class="layout">
@@ -178,7 +179,19 @@ function loadAll(){
   loadActivity();
   loadLiveTable();
 }
-document.addEventListener('DOMContentLoaded', loadAll);
+
+// ── Socket.io Real-time Updates ──────────────────────────────
+function initSocket() {
+  try {
+    const socket = io(window.location.origin);
+    socket.on('disaster:created',  () => { toast('🌊 New disaster reported!', 'warning'); loadStats(); loadLiveTable(); });
+    socket.on('disaster:updated',  () => { loadStats(); loadLiveTable(); });
+    socket.on('victim:created',    () => { loadStats(); });
+    socket.on('donation:created',  () => { loadStats(); toast('💰 New donation received!', 'success'); });
+  } catch(e) { /* Socket.io unavailable — silent */ }
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadAll(); initSocket(); });
 </script>
 </body>
 </html>

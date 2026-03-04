@@ -2,20 +2,33 @@
 const express          = require('express');
 const router           = express.Router();
 const db               = require('../config/database');
+const { authenticate } = require('../middleware/auth');
+const { validateVolunteer } = require('../middleware/validate');
 const { isConnectionError, DB_UNAVAILABLE_MSG } = db;
+
+// ── Pagination helper ───────────────────────────────────────
+function paginate(req) {
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    return { page, limit, offset: (page - 1) * limit };
+}
 
 // GET /api/volunteers — List all volunteers
 router.get('/', async (req, res) => {
     try {
+        const { page, limit, offset } = paginate(req);
+        const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM volunteers');
         const [rows] = await db.query(
             `SELECT v.*, d.disaster_type, d.location AS disaster_location,
              az.zone_name
              FROM volunteers v
              LEFT JOIN disasters     d  ON v.assigned_disaster_id = d.disaster_id
              LEFT JOIN affected_zones az ON v.assigned_zone_id   = az.zone_id
-             ORDER BY v.hours_contributed DESC`
+             ORDER BY v.hours_contributed DESC
+             LIMIT ? OFFSET ?`,
+            [limit, offset]
         );
-        res.json(rows);
+        res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
@@ -59,7 +72,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/volunteers — Register volunteer
-router.post('/', async (req, res) => {
+router.post('/', authenticate, validateVolunteer, async (req, res) => {
     try {
         const { name, email, phone, skills, availability, assigned_disaster_id,
                 assigned_zone_id, hours_contributed, rating } = req.body;
@@ -79,7 +92,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/volunteers/:id — Update volunteer
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
     try {
         const { name, email, phone, skills, availability, assigned_disaster_id,
                 assigned_zone_id, hours_contributed, rating } = req.body;
@@ -92,6 +105,19 @@ router.put('/:id', async (req, res) => {
              hours_contributed || 0, rating || 0, req.params.id]
         );
         res.json({ message: 'Volunteer updated' });
+    } catch (err) {
+        if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/volunteers/:id — Delete volunteer
+router.delete('/:id', authenticate, async (req, res) => {
+    try {
+        const [check] = await db.query('SELECT volunteer_id FROM volunteers WHERE volunteer_id = ?', [req.params.id]);
+        if (!check.length) return res.status(404).json({ error: 'Not found' });
+        await db.query('DELETE FROM volunteers WHERE volunteer_id = ?', [req.params.id]);
+        res.json({ message: 'Volunteer deleted' });
     } catch (err) {
         if (isConnectionError(err)) return res.status(503).json({ error: DB_UNAVAILABLE_MSG });
         res.status(500).json({ error: err.message });
