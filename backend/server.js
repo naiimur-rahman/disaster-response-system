@@ -111,8 +111,8 @@ app.use(errorHandler);
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const { testConnection } = require('./config/database');
 
-// Only listen when not in test mode
-if (process.env.NODE_ENV !== 'test') {
+// Only listen when not in test mode and not running as a Vercel serverless function
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     server.listen(PORT, async () => {
         console.log(`🌊 Disaster Response System running on http://localhost:${PORT}`);
         try {
@@ -126,5 +126,10 @@ if (process.env.NODE_ENV !== 'test') {
     });
 }
 
-module.exports = { app, server, io };
+// Export app as default for Vercel's @vercel/node serverless builder,
+// and expose named exports for tests and programmatic use.
+module.exports = app;
+module.exports.app = app;
+module.exports.server = server;
+module.exports.io = io;
 

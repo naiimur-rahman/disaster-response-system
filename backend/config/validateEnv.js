@@ -1,4 +1,4 @@
-// config/validateEnv.js — Fail fast if required env vars are missing
+// config/validateEnv.js — Warn about missing env vars without crashing serverless functions
 function validateEnv() {
     const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
     const optional = {
@@ -15,7 +15,12 @@ function validateEnv() {
         console.error('❌ Missing required environment variables:');
         missing.forEach(key => console.error(`   - ${key}`));
         console.error('   Copy backend/.env.example to backend/.env and fill in the values.');
-        process.exit(1);
+        // On Vercel (and other serverless platforms), process.exit() crashes the
+        // function invocation. Skip it there and let individual request handlers
+        // return 503 for DB errors and 500 for JWT errors instead.
+        if (!process.env.VERCEL) {
+            process.exit(1);
+        }
     }
 
     Object.entries(optional).forEach(([key, defaultVal]) => {
